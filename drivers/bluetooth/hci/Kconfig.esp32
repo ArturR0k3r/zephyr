@@ -4,18 +4,33 @@ if BT_ESP32
 
 config HEAP_MEM_POOL_ADD_SIZE_ESP_BT
 	int
+	default 0    if ESP_BT_HEAP_SPIRAM
 	default 50000 if SOC_SERIES_ESP32C2 || SOC_SERIES_ESP32C5 || SOC_SERIES_ESP32C6 || SOC_SERIES_ESP32H2
 	default 25600
 	default 0
 	help
 	  Additional heap size reserved for Bluetooth driver usage.
+	  Zero when SPIRAM heap is used — large btdm allocs go to PSRAM; set
+	  CONFIG_HEAP_MEM_POOL_SIZE explicitly to cover small DRAM allocs.
 
 choice ESP_BT_HEAP
 	prompt "Bluetooth heap type"
+	default ESP_BT_HEAP_SPIRAM if ESP_SPIRAM
 	default ESP_BT_HEAP_SYSTEM
 
 config ESP_BT_HEAP_SYSTEM
 	bool "Kernel memory pool heap (k_malloc)"
+
+config ESP_BT_HEAP_SPIRAM
+	bool "SPIRAM heap — mixed (smh_malloc for large, k_malloc for small)"
+	depends on ESP_SPIRAM && SHARED_MULTI_HEAP
+	help
+	  Route large BT controller allocations (btdm EMI working-memory block,
+	  ≥16 KB) to external PSRAM via shared_multi_heap_alloc, while keeping
+	  small allocations (RF calibration data, interrupt handle structs,
+	  control structures) in DMA-accessible internal DRAM via k_malloc.
+	  Mirrors ESP-IDF BT_CTRL_MEM_ALLOC_MODE_MIXED behaviour on ESP32-S3.
+	  Set CONFIG_HEAP_MEM_POOL_SIZE to cover WiFi ADD_SIZE + BT small allocs.
 
 endchoice # ESP_BT_HEAP
 
